@@ -786,80 +786,85 @@ export default function VirtualRoom({
   const drawCharacterSprite = (ctx, char, walkFrame) => {
     const { x, y, avatar, name, direction, isMoving, micOn, emote, isMe, jumpOffset = 0 } = char;
     const bounce = isMoving ? Math.abs(Math.sin(walkFrame * 2)) * 4 : 0;
-    const currentJump = jumpOffset; // Tinggi loncatan
+    const currentJump = jumpOffset; // Tinggi lompatan pixel
     const colors = avatar || { body: '#6366f1', shirt: '#4338ca', skin: '#fcd34d', hair: '#1e1b4b' };
 
     ctx.save();
-    const shadowScale = Math.max(0.4, 1 - (currentJump / 35));
+
+    // 1. Bayangan di lantai (Mengecil saat melompat tinggi, TETAP di lantai)
+    const shadowScale = Math.max(0.35, 1 - (currentJump / 35));
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
     ctx.beginPath();
     ctx.ellipse(x, y + 16, 14 * shadowScale, 6 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.beginPath();
-    ctx.ellipse(x, y + 16, 14, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-
+    // Highlight Cincin Pemain (Tetap di lantai bersama bayangan)
     if (isMe) {
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(x, y + 16, 16, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 16, 16 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    // Offset vertikal total untuk seluruh badan (Bounce jalan + Tinggi lompatan)
+    // TOTAL ANGKAT BADAN (Animasi jalan + Tinggi lompatan Space)
     const totalLift = bounce + currentJump;
 
-    // 3. Kaki (terangkat bersama lompatan)
+    // 2. Kaki (Terangkat naik bersama lompatan)
     const leftLegOffset = isMoving ? Math.sin(walkFrame * 2) * 4 : 0;
     const rightLegOffset = isMoving ? -Math.sin(walkFrame * 2) * 4 : 0;
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(x - 8, y + 6 + leftLegOffset - totalLift, 6, 10);
     ctx.fillRect(x + 2, y + 6 + rightLegOffset - totalLift, 6, 10);
-    
 
+    // 3. Badan / Baju (Gunakan - totalLift agar ikut loncat)
     ctx.fillStyle = colors.body;
     ctx.beginPath();
-    ctx.roundRect(x - 12, y - 8 - bounce, 24, 18, 6);
+    ctx.roundRect(x - 12, y - 8 - totalLift, 24, 18, 6);
     ctx.fill();
 
-    ctx.fillStyle = colors.shirt;
-    ctx.fillRect(x - 6, y - 6 - bounce, 12, 10);
+    // 4. Detail Kerah Baju (Gunakan - totalLift)
+    ctx.fillStyle = colors.shirt || '#4338ca';
+    ctx.fillRect(x - 6, y - 6 - totalLift, 12, 10);
 
+    // 5. Kepala (Gunakan - totalLift)
     ctx.fillStyle = colors.skin;
     ctx.beginPath();
-    ctx.roundRect(x - 13, y - 26 - bounce, 26, 20, 8);
+    ctx.roundRect(x - 13, y - 26 - totalLift, 26, 20, 8);
     ctx.fill();
 
+    // 6. Rambut (Gunakan - totalLift)
     ctx.fillStyle = colors.hair;
     ctx.beginPath();
-    ctx.roundRect(x - 14, y - 28 - bounce, 28, 9, [8, 8, 2, 2]);
+    ctx.roundRect(x - 14, y - 28 - totalLift, 28, 9, [8, 8, 2, 2]);
     ctx.fill();
 
+    // 7. Mata (Gunakan - totalLift)
     ctx.fillStyle = '#0f172a';
     if (direction !== 'up') {
       let eyeOffsetX = 0;
       if (direction === 'left') eyeOffsetX = -4;
       if (direction === 'right') eyeOffsetX = 4;
+
       ctx.beginPath();
-      ctx.arc(x - 5 + eyeOffsetX, y - 16 - bounce, 2.2, 0, Math.PI * 2);
-      ctx.arc(x + 5 + eyeOffsetX, y - 16 - bounce, 2.2, 0, Math.PI * 2);
+      ctx.arc(x - 5 + eyeOffsetX, y - 16 - totalLift, 2.2, 0, Math.PI * 2);
+      ctx.arc(x + 5 + eyeOffsetX, y - 16 - totalLift, 2.2, 0, Math.PI * 2);
       ctx.fill();
     }
 
+    // 8. Floating Emote (Ikut melayang saat loncat)
     if (emote) {
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(emote, x, y - 48 - bounce);
+      ctx.fillText(emote, x, y - 48 - totalLift);
     }
 
+    // 9. Name Tag Pill (Ikut melayang bersama kepala)
     ctx.font = '600 11px Inter, sans-serif';
     const textWidth = ctx.measureText(name).width;
     const pillWidth = textWidth + 24;
     const pillX = x - pillWidth / 2;
-    const pillY = y - 44;
+    const pillY = y - 44 - totalLift;
 
     ctx.fillStyle = isMe ? 'rgba(15, 23, 42, 0.92)' : 'rgba(15, 23, 42, 0.85)';
     ctx.beginPath();
