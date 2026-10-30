@@ -1072,7 +1072,7 @@ export default function VirtualRoom({
             className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-semibold text-white flex items-center gap-1.5 shadow-md shadow-emerald-600/30 transition"
           >
             <Maximize2 className="w-3.5 h-3.5" />
-            <span>Mode Google Meet</span>
+            <span>Mode Full Meet</span>
           </button>
           <button
             onClick={() => setActiveModal('docs')}
