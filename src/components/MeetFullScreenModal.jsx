@@ -488,6 +488,24 @@ useEffect(() => {
     }
   };
 
+  const handleLeaveMeet = async () => {
+  // Jika PiP sedang aktif di Windows, tutup jendelanya
+    if (document.pictureInPictureElement) {
+      try {
+        await document.exitPictureInPicture();
+      } catch (e) {}
+    }
+    setIsPipActive(false);
+
+    // Jika sedang share screen, hentikan juga
+    if (isMePresenting) {
+      await stopScreenSharing();
+    }
+
+    // Panggil onClose bawaan untuk kembali ke peta 2D
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const activePrivateList = privateChatMessages.filter(
@@ -943,7 +961,7 @@ useEffect(() => {
           </button>
 
           <button
-            onClick={onClose}
+            onClick={handleLeaveMeet}
             className="p-3.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white shadow-xl flex items-center gap-2 px-5 font-semibold text-xs transition"
             title="Tinggalkan Mode Meet"
           >
