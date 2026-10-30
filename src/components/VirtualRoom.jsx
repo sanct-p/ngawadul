@@ -160,6 +160,11 @@ export default function VirtualRoom({
 
   const [playerPos, setPlayerPos] = useState({ x: 11.5 * TILE_SIZE, y: 10.5 * TILE_SIZE, direction: 'down', isMoving: false });
   const playerPosRef = useRef({ x: 11.5 * TILE_SIZE, y: 10.5 * TILE_SIZE, direction: 'down', isMoving: false, emote: null });
+  const jumpRef = useRef({
+    isJumping: false,
+    offsetY: 0,       // Tinggi lompatan (pixel)
+    velocity: 0       // Kecepatan loncat
+  });
   const [activeEmote, setActiveEmote] = useState(null);
   const [remotePlayers, setRemotePlayers] = useState({});
   const keysPressedRef = useRef({});
@@ -450,6 +455,17 @@ export default function VirtualRoom({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+
+      // --- FITUR LONCAT SPACE ---
+    if (e.code === 'Space' || e.key === ' ') {
+      e.preventDefault(); // Mencegah halaman scroll ke bawah
+      if (!jumpRef.current.isJumping) {
+        jumpRef.current.isJumping = true;
+        jumpRef.current.velocity = 8; // Daya loncat ke atas (semakin besar semakin tinggi)
+      }
+      return;
+    }
+
       const key = e.key.toLowerCase();
       keysPressedRef.current[key] = true;
       targetPointRef.current = null;
@@ -504,6 +520,19 @@ export default function VirtualRoom({
 
       const speed = 3.4;
       let isMoving = false;
+      
+      // --- UPDATE FISIKA LOMPATAN ---
+      if (jumpRef.current.isJumping) {
+        jumpRef.current.offsetY += jumpRef.current.velocity;
+        jumpRef.current.velocity -= 0.55; // Efek gravitasi bumi (menarik ke bawah)
+
+        // Ketika mendarat kembali ke lantai
+        if (jumpRef.current.offsetY <= 0) {
+          jumpRef.current.offsetY = 0;
+          jumpRef.current.velocity = 0;
+          jumpRef.current.isJumping = false;
+        }
+      }
 
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy);
@@ -746,6 +775,7 @@ export default function VirtualRoom({
         avatar: selectedAvatar,
         micOn,
         emote: activeEmote,
+        jumpOffset: jumpRef.current.offsetY,
         isMe: true
       }
     ].sort((a, b) => a.y - b.y);
@@ -756,9 +786,16 @@ export default function VirtualRoom({
   const drawCharacterSprite = (ctx, char, walkFrame) => {
     const { x, y, avatar, name, direction, isMoving, micOn, emote, isMe } = char;
     const bounce = isMoving ? Math.abs(Math.sin(walkFrame * 2)) * 4 : 0;
+    const currentJump = jumpOffset; // Tinggi loncatan
     const colors = avatar || { body: '#6366f1', shirt: '#4338ca', skin: '#fcd34d', hair: '#1e1b4b' };
 
     ctx.save();
+    const shadowScale = Math.max(0.4, 1 - (currentJump / 35));
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 16, 14 * shadowScale, 6 * shadowScale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
     ctx.beginPath();
     ctx.ellipse(x, y + 16, 14, 6, 0, 0, Math.PI * 2);
@@ -772,11 +809,16 @@ export default function VirtualRoom({
       ctx.stroke();
     }
 
+    // Offset vertikal total untuk seluruh badan (Bounce jalan + Tinggi lompatan)
+    const totalLift = bounce + currentJump;
+
+    // 3. Kaki (terangkat bersama lompatan)
     const leftLegOffset = isMoving ? Math.sin(walkFrame * 2) * 4 : 0;
     const rightLegOffset = isMoving ? -Math.sin(walkFrame * 2) * 4 : 0;
     ctx.fillStyle = '#1e293b';
-    ctx.fillRect(x - 8, y + 6 + leftLegOffset, 6, 10);
-    ctx.fillRect(x + 2, y + 6 + rightLegOffset, 6, 10);
+    ctx.fillRect(x - 8, y + 6 + leftLegOffset - totalLift, 6, 10);
+    ctx.fillRect(x + 2, y + 6 + rightLegOffset - totalLift, 6, 10);
+    
 
     ctx.fillStyle = colors.body;
     ctx.beginPath();
