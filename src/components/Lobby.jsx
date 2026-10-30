@@ -194,8 +194,8 @@ export default function Lobby({
                   <Sparkles className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="font-bold text-lg tracking-tight text-white">GatherVerse</h1>
-                  <p className="text-xs text-slate-400">Multi-Room Virtual Space</p>
+                  <h1 className="font-bold text-lg tracking-tight text-white">Ngawadul</h1>
+                  <p className="text-xs text-slate-400">Ngawadul In Virtual Room</p>
                 </div>
               </div>
 

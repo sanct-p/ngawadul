@@ -890,7 +890,7 @@ useEffect(() => {
       {/* 4. FOOTER CONTROLS */}
       <footer className="h-20 bg-slate-900 border-t border-slate-800 px-6 flex items-center justify-between shrink-0">
         <div className="hidden sm:block text-xs text-slate-400">
-          GatherVerse Google Meet Mode
+          Ngawadul Full Meet Mode
         </div>
 
         <div className="flex items-center gap-3 mx-auto sm:mx-0">
