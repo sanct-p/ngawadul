@@ -764,7 +764,7 @@ export default function VirtualRoom({
     });
 
     const charactersToDraw = [
-      ...Object.values(remotePlayers).map((p) => ({ ...p, isMe: false })),
+      ...Object.values(remotePlayers).map((p) => ({ ...p, isMe: false, jumpOffset: 0 })),
       {
         id: 'local-player',
         name: playerName + ' (Kamu)',
@@ -784,7 +784,7 @@ export default function VirtualRoom({
   };
 
   const drawCharacterSprite = (ctx, char, walkFrame) => {
-    const { x, y, avatar, name, direction, isMoving, micOn, emote, isMe } = char;
+    const { x, y, avatar, name, direction, isMoving, micOn, emote, isMe, jumpOffset = 0 } = char;
     const bounce = isMoving ? Math.abs(Math.sin(walkFrame * 2)) * 4 : 0;
     const currentJump = jumpOffset; // Tinggi loncatan
     const colors = avatar || { body: '#6366f1', shirt: '#4338ca', skin: '#fcd34d', hair: '#1e1b4b' };
