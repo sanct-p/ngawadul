@@ -24,8 +24,8 @@ export default function App() {
   const [userRooms, setUserRooms] = useState([]);
 
   // Status Profil Pengguna
-  const [playerName, setPlayerName] = useState('Kreator Muda');
-  const [playerStatus, setPlayerStatus] = useState('Siap Berkolaborasi 🚀');
+  const [playerName, setPlayerName] = useState('');
+  const [playerStatus, setPlayerStatus] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0]);
 
   // Status Perangkat Media

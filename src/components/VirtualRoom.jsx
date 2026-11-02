@@ -6,10 +6,11 @@ import {
 import { 
   Maximize2, Mic, MicOff, Video, VideoOff, MessageSquare, Users, 
   HelpCircle, Coffee, FileText, PenTool, LogOut, 
-  Volume2, MapPin, Send, Trash2, ChevronUp, 
+  Volume2, VolumeX, MapPin, Send, Trash2, ChevronUp, 
   ChevronDown, ChevronLeft, ChevronRight, Radio, X, Share2, Check
 } from 'lucide-react';
 import MeetFullScreenModal from './MeetFullScreenModal';
+import { playJumpSound, playProximityJoinSound, playChatSound, setSfxMuted, getSfxMuted } from '../utils/soundEffects';
 
 const TILE_SIZE = 48;
 const MAP_COLS = 24;
@@ -181,12 +182,30 @@ export default function VirtualRoom({
   const [whiteboardStrokes, setWhiteboardStrokes] = useState([]);
   const [coffeeToast, setCoffeeToast] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isMutedSfx, setIsMutedSfx] = useState(() => getSfxMuted());
+
+  const toggleMuteSfx = () => {
+    const nextState = !isMutedSfx;
+    setIsMutedSfx(nextState);
+    setSfxMuted(nextState);
+  };
 
   const mapCanvasRef = useRef(null);
   const whiteboardCanvasRef = useRef(null);
   const [wbColor, setWbColor] = useState('#38bdf8');
   const isDrawingRef = useRef(false);
   const currentStrokeRef = useRef([]);
+  const previousPeersRef = useRef(new Set());
+  const isInitialChatLoadRef = useRef(true);
+  const chatEndRef = useRef(null);
+
+      
+  // Auto Scroll New Chat
+  useEffect(() => {
+    if (showChat) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, showChat]);
 
   // Sinkronisasi data dinamis berdasarkan roomId
   useEffect(() => {
@@ -212,6 +231,21 @@ export default function VirtualRoom({
       const msgs = [];
       snap.forEach((d) => msgs.push({ id: d.id, ...d.data() }));
       msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      // Cek apakah ada pesan baru yang bukan dikirim oleh diri sendiri
+      if (!isInitialChatLoadRef.current) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const newMsg = change.doc.data();
+            if (newMsg.sender !== playerName) {
+              playChatSound(false); // <-- Bunyikan suara pesan masuk umum
+            }
+          }
+        });
+      } else {
+        isInitialChatLoadRef.current = false;
+      }
+
       setChatMessages([
         { id: 'welcome', sender: 'Sistem', text: `Selamat datang di room: ${roomTitle}`, time: 'Sistem', isSystem: true },
         ...msgs.slice(-50)
@@ -315,6 +349,25 @@ export default function VirtualRoom({
     }
     return connected;
   }, [playerPos.x, playerPos.y, remotePlayers]);
+
+  // Tambahkan useEffect ini di bawah deklarasi connectedPeers:
+  useEffect(() => {
+    const currentPeerIds = new Set(connectedPeers.map((p) => p.id));
+    
+    // Cek apakah ada pemain baru yang baru saja masuk jangkauan
+    let hasNewUserEntered = false;
+    currentPeerIds.forEach((id) => {
+      if (!previousPeersRef.current.has(id)) {
+        hasNewUserEntered = true;
+      }
+    });
+
+    if (hasNewUserEntered) {
+      playProximityJoinSound(); // <-- Bunyikan suara user masuk jangkauan
+    }
+
+    previousPeersRef.current = currentPeerIds;
+  }, [connectedPeers]);
 
   // WebRTC Signals Handling (Per-Room)
   useEffect(() => {
@@ -462,6 +515,7 @@ export default function VirtualRoom({
       if (!jumpRef.current.isJumping) {
         jumpRef.current.isJumping = true;
         jumpRef.current.velocity = 8; // Daya loncat ke atas (semakin besar semakin tinggi)
+        playJumpSound(); // <-- Bunyikan suara loncat
       }
       return;
     }
@@ -1088,7 +1142,18 @@ export default function VirtualRoom({
           </div>
 
           <div className="h-4 w-[1px] bg-slate-800 mx-1" />
-
+          {/* Tombol Mute / Unmute Sound Effects */}
+          <button
+            onClick={toggleMuteSfx}
+            className={`p-2 rounded-lg border transition ${
+              isMutedSfx 
+                ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25' 
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+            }`}
+            title={isMutedSfx ? 'Nyalakan Efek Suara' : 'Mute Semua Efek Suara'}
+          >
+            {isMutedSfx ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+          </button>
           {/* Current Room Indicator & Share Button */}
           <button
             onClick={handleCopyLink}
@@ -1282,6 +1347,7 @@ export default function VirtualRoom({
                       <p className="leading-relaxed text-slate-200">{msg.text}</p>
                     </div>
                   ))}
+                  <div ref={chatEndRef} />
                 </div>
 
                 <form onSubmit={handleSendChat} className="p-3 border-t border-slate-800 flex gap-2">

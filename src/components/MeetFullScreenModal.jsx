@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { collection, addDoc, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { playChatSound } from '../utils/soundEffects';
 
 // Helper agar video di-render dengan object-fit: contain (tidak gepeng & rasio terjaga)
 function drawVideoAspectFit(ctx, video, x, y, width, height) {
@@ -126,11 +127,24 @@ export default function MeetFullScreenModal({
   const pipCanvasRef = useRef(null);
   const pipVideoRef = useRef(null);
   const pipAnimFrameRef = useRef(null);
+  // Tambahkan 2 ref di atas useEffect agar pesan lama tidak membunyikan notifikasi saat modal dibuka:
+  const isInitialRoomChatRef = useRef(true);
+  const isInitialDMChatRef = useRef(true);
 
   // Identifikasi Presenter
   const isMePresenting = activePresenterId === user?.uid;
   const isSomeonePresenting = Boolean(activePresenterId);
   const totalParticipants = 1 + connectedPeers.length;
+ 
+  // 1. Letakkan Ref DI SINI (jangan di dalam RemoteParticipantVideo atau fungsi biasa):
+  const meetChatEndRef = useRef(null);
+
+  // 2. Letakkan useEffect DI SINI:
+  useEffect(() => {
+    if (activeSidePanel === 'chat') {
+      meetChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [roomChatMessages, privateChatMessages, chatScope, activeSidePanel]);
 
   // 1. Pantau Status Presenter di Firestore
   useEffect(() => {
@@ -185,6 +199,20 @@ export default function MeetFullScreenModal({
       const msgs = [];
       snap.forEach((d) => msgs.push({ id: d.id, ...d.data() }));
       msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      if (!isInitialRoomChatRef.current) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const newMsg = change.doc.data();
+            if (newMsg.senderId !== user?.uid) {
+              playChatSound(false); // <-- Bunyi chat meet umum
+            }
+          }
+        });
+      } else {
+        isInitialRoomChatRef.current = false;
+      }
+
       setRoomChatMessages(msgs);
     });
     return () => unsub();
@@ -202,6 +230,21 @@ export default function MeetFullScreenModal({
         }
       });
       msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      if (!isInitialDMChatRef.current) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const newMsg = change.doc.data();
+            // Hanya bunyi jika pesan ditujukan ke kita dan bukan kita pengirimnya
+            if (newMsg.receiverId === user.uid && newMsg.senderId !== user.uid) {
+              playChatSound(true); // <-- Bunyi chat DM privat (nada khusus)
+            }
+          }
+        });
+      } else {
+        isInitialDMChatRef.current = false;
+      }
+
       setPrivateChatMessages(msgs);
     });
     return () => unsub();
@@ -825,6 +868,7 @@ useEffect(() => {
                       </div>
                     ))
                   )}
+                  <div ref={meetChatEndRef} />
                 </div>
 
                 <form onSubmit={handleSendChat} className="p-3 border-t border-slate-800 flex gap-2">

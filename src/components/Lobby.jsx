@@ -330,6 +330,7 @@ export default function Lobby({
                   type="text"
                   value={playerStatus}
                   onChange={(e) => setPlayerStatus(e.target.value)}
+                  placeholder="cth: Siap Berkolaborasi / Ngobrol Santai / .."
                   maxLength={30}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none transition"
                 />
