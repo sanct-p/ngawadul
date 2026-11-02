@@ -25,7 +25,7 @@ export default function App() {
 
   // Status Profil Pengguna
   const [playerName, setPlayerName] = useState('');
-  const [playerStatus, setPlayerStatus] = useState('');
+  const [playerStatus, setPlayerStatus] = useState('Online 🟢');
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0]);
 
   // Status Perangkat Media
@@ -33,6 +33,7 @@ export default function App() {
   const [camOn, setCamOn] = useState(false);
   const [mediaStream, setMediaStream] = useState(null);
   const [camError, setCamError] = useState(null);
+  const [selectedGender, setSelectedGender] = useState('male');
 
   // 1. Verifikasi Parameter URL (?room=...) & Login Link Email
   useEffect(() => {
@@ -296,6 +297,8 @@ export default function App() {
           setPlayerStatus={setPlayerStatus}
           selectedAvatar={selectedAvatar}
           setSelectedAvatar={setSelectedAvatar}
+          selectedGender={selectedGender}
+          setSelectedGender={setSelectedGender}
           micOn={micOn}
           setMicOn={setMicOn}
           camOn={camOn}
@@ -318,7 +321,9 @@ export default function App() {
           user={user}
           playerName={playerName}
           playerStatus={playerStatus}
+          setPlayerStatus={setPlayerStatus}
           selectedAvatar={selectedAvatar}
+          selectedGender={selectedGender}
           micOn={micOn}
           setMicOn={setMicOn}
           camOn={camOn}

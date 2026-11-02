@@ -39,6 +39,117 @@ function Toast({ message, isVisible, onClose }) {
   );
 }
 
+function CharacterPreviewCanvas({ avatar, gender = 'male', name = '' }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // Bersihkan canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Titik pusat koordinat di tengah canvas (lebar 96, tinggi 96)
+    const x = 48;
+    const y = 52;
+    const isFemale = gender === 'female';
+    const colors = avatar || { body: '#6366f1', shirt: '#4338ca', skin: '#fcd34d', hair: '#1e1b4b' };
+
+    ctx.save();
+
+    // 1. Bayangan di lantai
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 16, 14, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Kaki & Sepatu
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(x - 8, y + 6, 6, 10);
+    ctx.fillRect(x + 2, y + 6, 6, 10);
+
+    // 3. Rambut Belakang Khusus Wanita (Terurai di belakang bahu)
+    if (isFemale) {
+      ctx.fillStyle = colors.hair;
+      ctx.beginPath();
+      ctx.roundRect(x - 16, y - 24, 32, 26, [8, 8, 4, 4]);
+      ctx.fill();
+    }
+
+    // 4. Badan / Pakaian (Baju jas pria vs Blus/Dress A-line wanita)
+    ctx.fillStyle = colors.body;
+    ctx.beginPath();
+    if (isFemale) {
+      ctx.moveTo(x - 11, y - 8);
+      ctx.lineTo(x + 11, y - 8);
+      ctx.lineTo(x + 14, y + 10);
+      ctx.lineTo(x - 14, y + 10);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.roundRect(x - 12, y - 8, 24, 18, 6);
+      ctx.fill();
+    }
+
+    // 5. Kerah / Aksen Baju
+    ctx.fillStyle = colors.shirt || '#4338ca';
+    if (isFemale) {
+      ctx.beginPath();
+      ctx.arc(x, y - 3, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x - 6, y - 6, 12, 10);
+    }
+
+    // 6. Kepala
+    ctx.fillStyle = colors.skin;
+    ctx.beginPath();
+    ctx.roundRect(x - 13, y - 26, 26, 20, 8);
+    ctx.fill();
+
+    // 7. Rambut Depan (Gaya sesuai gender)
+    ctx.fillStyle = colors.hair;
+    ctx.beginPath();
+    if (isFemale) {
+      ctx.roundRect(x - 15, y - 30, 30, 11, [10, 10, 4, 4]);
+      ctx.fill();
+
+      // Pita / Jepit rambut wanita
+      ctx.fillStyle = colors.shirt || '#ec4899';
+      ctx.beginPath();
+      ctx.arc(x + 11, y - 25, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.roundRect(x - 14, y - 29, 28, 9, [8, 8, 2, 2]);
+      ctx.fill();
+    }
+
+    // 8. Mata & Bulu Mata
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(x - 5, y - 16, 2.2, 0, Math.PI * 2);
+    ctx.arc(x + 5, y - 16, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (isFemale) {
+      ctx.fillRect(x + 6, y - 19, 2, 2);
+      ctx.fillRect(x - 8, y - 19, 2, 2);
+    }
+
+    ctx.restore();
+  }, [avatar, gender]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={96}
+      height={96}
+      className="w-24 h-24 block drop-shadow-md"
+    />
+  );
+}
+
 export default function Lobby({
   user,
   playerName,
@@ -47,6 +158,8 @@ export default function Lobby({
   setPlayerStatus,
   selectedAvatar,
   setSelectedAvatar,
+  selectedGender,
+  setSelectedGender,
   micOn,
   setMicOn,
   camOn,
@@ -224,7 +337,20 @@ export default function Lobby({
                 <video ref={lobbyVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
               ) : (
                 <div className="flex flex-col items-center justify-center p-4 text-center">
-                  <div className="relative w-20 h-20 rounded-2xl bg-slate-800/90 border border-slate-700 flex items-center justify-center mb-2 shadow-lg">
+                  {/* Box Preview Karakter yang Sama Persis dengan Virtual Room */}
+                  <div className="relative w-24 h-24 rounded-2xl flex items-center justify-center mb-2 shadow-lg overflow-hidden animate-bounce">
+                    <CharacterPreviewCanvas
+                      avatar={selectedAvatar}
+                      gender={selectedGender}
+                      name={playerName}
+                    />
+                  </div>
+
+                  <span className="text-xs font-medium text-slate-300">{playerName || 'Tanpa Nama'}</span>
+                  <span className="text-[11px] text-emerald-400 mt-0.5">
+                    {selectedAvatar.name} • {selectedGender === 'female' ? 'Wanita' : 'Pria'}
+                  </span>
+                  {/* <div className="relative w-20 h-20 rounded-2xl bg-slate-800/90 border border-slate-700 flex items-center justify-center mb-2 shadow-lg">
                     <div className="flex flex-col items-center animate-bounce">
                       <div className="w-8 h-3 rounded-t-md" style={{ backgroundColor: selectedAvatar.hair }} />
                       <div className="w-8 h-6 rounded-b-md flex items-center justify-around px-1.5" style={{ backgroundColor: selectedAvatar.skin }}>
@@ -233,9 +359,9 @@ export default function Lobby({
                       </div>
                       <div className="w-9 h-6 rounded-md -mt-0.5" style={{ backgroundColor: selectedAvatar.body }} />
                     </div>
-                  </div>
-                  <span className="text-xs font-medium text-slate-300">{playerName || 'Tanpa Nama'}</span>
-                  <span className="text-[11px] text-emerald-400 mt-0.5">{selectedAvatar.name}</span>
+                  </div> */}
+                  {/* <span className="text-xs font-medium text-slate-300">{playerName || 'Tanpa Nama'}</span>
+                  <span className="text-[11px] text-emerald-400 mt-0.5">{selectedAvatar.name}</span> */}
                 </div>
               )}
 
@@ -303,7 +429,7 @@ export default function Lobby({
             </div>
 
             {/* Input Nama & Status */}
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid sm:grid-cols-1 gap-3">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Nama Tampilan
@@ -322,7 +448,7 @@ export default function Lobby({
                 />
               </div>
 
-              <div>
+              {/* <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Status Aktivitas
                 </label>
@@ -334,13 +460,46 @@ export default function Lobby({
                   maxLength={30}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none transition"
                 />
-              </div>
+              </div> */}
             </div>
 
             {/* Pilihan Karakter */}
+            {/* Pilihan Gender Terpisah */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Pilih Karakter (Gender)
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGender('male')}
+                  className={`py-3 px-4 rounded-xl border flex items-center justify-center gap-2.5 transition font-semibold text-xs ${
+                    selectedGender === 'male'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-md'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="text-base">👨</span>
+                  <span>Pria</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedGender('female')}
+                  className={`py-3 px-4 rounded-xl border flex items-center justify-center gap-2.5 transition font-semibold text-xs ${
+                    selectedGender === 'female'
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-md'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="text-base">👩</span>
+                  <span>Wanita</span>
+                </button>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Pilih Karakter
+                Pilih Tema Warna
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {AVATAR_PRESETS.map((preset) => (

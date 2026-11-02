@@ -46,6 +46,13 @@ const OFFICE_MAP = [
 const COLLISION_TILES = new Set([1, 4, 6, 7, 8, 9, 10]);
 const EMOTES = ['👋', '❤️', '🎉', '💡', '🔥', '😂', '👍', '☕'];
 
+export const STATUS_PRESETS = [
+  { id: 'online', label: 'Standby / Online', badgeColor: '#22c55e', icon: '🟢', val: 'Online 🟢' },
+  { id: 'working', label: 'Fokus Kerja', badgeColor: '#6366f1', icon: '💻', val: 'Fokus Kerja 💻' },
+  { id: 'sleeping', label: 'Tidur / Istirahat', badgeColor: '#a855f7', icon: '💤', val: 'Tidur 💤' },
+  { id: 'afk', label: 'AFK / Pergi Sebentar', badgeColor: '#f59e0b', icon: '⏳', val: 'AFK ⏳' },
+];
+
 function RemoteVideoBubble({ peer, stream }) {
   const videoRef = useRef(null);
 
@@ -146,7 +153,9 @@ export default function VirtualRoom({
   user,
   playerName,
   playerStatus,
+  setPlayerStatus,
   selectedAvatar,
+  selectedGender,
   micOn,
   setMicOn,
   camOn,
@@ -198,7 +207,21 @@ export default function VirtualRoom({
   const previousPeersRef = useRef(new Set());
   const isInitialChatLoadRef = useRef(true);
   const chatEndRef = useRef(null);
+  
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+  const statusMenuRef = useRef(null);
 
+  // Tutup dropdown jika user klik di area luar
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target)) {
+        setIsStatusMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
       
   // Auto Scroll New Chat
   useEffect(() => {
@@ -589,6 +612,12 @@ export default function VirtualRoom({
       }
 
       if (dx !== 0 || dy !== 0) {
+
+        // Jika sedang tidur atau AFK, otomatis kembali Online saat pemain bergerak
+        if (playerStatus && (playerStatus.includes('Tidur') || playerStatus.includes('AFK'))) {
+          if (setPlayerStatus) setPlayerStatus('Online 🟢');
+        }
+
         const len = Math.hypot(dx, dy);
         const moveX = (dx / len) * speed;
         const moveY = (dy / len) * speed;
@@ -627,7 +656,7 @@ export default function VirtualRoom({
 
     animationFrameId = requestAnimationFrame(updateAndDraw);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [remotePlayers, selectedAvatar, playerName, micOn, activeEmote]);
+  }, [remotePlayers, selectedAvatar, playerName, micOn, activeEmote, playerStatus]);
 
   const renderOfficeCanvas = (ctx, walkFrame) => {
     ctx.clearRect(0, 0, MAP_COLS * TILE_SIZE, MAP_ROWS * TILE_SIZE);
@@ -822,11 +851,13 @@ export default function VirtualRoom({
       {
         id: 'local-player',
         name: playerName + ' (Kamu)',
+        gender: selectedGender,
         x: myX,
         y: myY,
         direction: playerPosRef.current.direction,
         isMoving: playerPosRef.current.isMoving,
         avatar: selectedAvatar,
+        status: playerStatus,
         micOn,
         emote: activeEmote,
         jumpOffset: jumpRef.current.offsetY,
@@ -838,21 +869,35 @@ export default function VirtualRoom({
   };
 
   const drawCharacterSprite = (ctx, char, walkFrame) => {
-    const { x, y, avatar, name, direction, isMoving, micOn, emote, isMe, jumpOffset = 0 } = char;
+    const { 
+      x, y, avatar, name, direction, isMoving, micOn, 
+      emote, isMe, jumpOffset = 0, gender = 'male', status = '' 
+    } = char;
+
+    // Deteksi tipe status dari string status
+    const isSleeping = status.includes('Tidur') || status.includes('💤');
+    const isWorking = status.includes('Kerja') || status.includes('💻');
+    const isAfk = status.includes('AFK') || status.includes('⏳');
+
     const bounce = isMoving ? Math.abs(Math.sin(walkFrame * 2)) * 4 : 0;
-    const currentJump = jumpOffset; // Tinggi lompatan pixel
+    const currentJump = jumpOffset;
     const colors = avatar || { body: '#6366f1', shirt: '#4338ca', skin: '#fcd34d', hair: '#1e1b4b' };
 
     ctx.save();
 
-    // 1. Bayangan di lantai (Mengecil saat melompat tinggi, TETAP di lantai)
+    // 1. EFEK AFK: Karakter menjadi transparan redup
+    if (isAfk) {
+      ctx.globalAlpha = 0.6;
+    }
+
+    // 2. Bayangan di lantai
     const shadowScale = Math.max(0.35, 1 - (currentJump / 35));
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
     ctx.beginPath();
     ctx.ellipse(x, y + 16, 14 * shadowScale, 6 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Highlight Cincin Pemain (Tetap di lantai bersama bayangan)
+    // Highlight Cincin Diri Sendiri
     if (isMe) {
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 2;
@@ -861,59 +906,136 @@ export default function VirtualRoom({
       ctx.stroke();
     }
 
-    // TOTAL ANGKAT BADAN (Animasi jalan + Tinggi lompatan Space)
-    const totalLift = bounce + currentJump;
+    // Jika sedang tidur, badan sedikit rebah / turun
+    const sleepSink = isSleeping ? 6 : 0;
+    const totalLift = (bounce + currentJump) - sleepSink;
+    const isFemale = gender === 'female';
 
-    // 2. Kaki (Terangkat naik bersama lompatan)
+    // 3. Kaki & Sepatu
     const leftLegOffset = isMoving ? Math.sin(walkFrame * 2) * 4 : 0;
     const rightLegOffset = isMoving ? -Math.sin(walkFrame * 2) * 4 : 0;
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(x - 8, y + 6 + leftLegOffset - totalLift, 6, 10);
     ctx.fillRect(x + 2, y + 6 + rightLegOffset - totalLift, 6, 10);
 
-    // 3. Badan / Baju (Gunakan - totalLift agar ikut loncat)
+    // 4. Rambut Belakang (Wanita)
+    if (isFemale) {
+      ctx.fillStyle = colors.hair;
+      ctx.beginPath();
+      ctx.roundRect(x - 16, y - 24 - totalLift, 32, 26, [8, 8, 4, 4]);
+      ctx.fill();
+    }
+
+    // 5. Badan / Pakaian
     ctx.fillStyle = colors.body;
     ctx.beginPath();
-    ctx.roundRect(x - 12, y - 8 - totalLift, 24, 18, 6);
-    ctx.fill();
+    if (isFemale) {
+      ctx.moveTo(x - 11, y - 8 - totalLift);
+      ctx.lineTo(x + 11, y - 8 - totalLift);
+      ctx.lineTo(x + 14, y + 10 - totalLift);
+      ctx.lineTo(x - 14, y + 10 - totalLift);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.roundRect(x - 12, y - 8 - totalLift, 24, 18, 6);
+      ctx.fill();
+    }
 
-    // 4. Detail Kerah Baju (Gunakan - totalLift)
+    // 6. Kerah Baju
     ctx.fillStyle = colors.shirt || '#4338ca';
-    ctx.fillRect(x - 6, y - 6 - totalLift, 12, 10);
+    if (isFemale) {
+      ctx.beginPath();
+      ctx.arc(x, y - 3 - totalLift, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x - 6, y - 6 - totalLift, 12, 10);
+    }
 
-    // 5. Kepala (Gunakan - totalLift)
+    // 7. Kepala
     ctx.fillStyle = colors.skin;
     ctx.beginPath();
     ctx.roundRect(x - 13, y - 26 - totalLift, 26, 20, 8);
     ctx.fill();
 
-    // 6. Rambut (Gunakan - totalLift)
+    // 8. Rambut Depan
     ctx.fillStyle = colors.hair;
     ctx.beginPath();
-    ctx.roundRect(x - 14, y - 28 - totalLift, 28, 9, [8, 8, 2, 2]);
-    ctx.fill();
-
-    // 7. Mata (Gunakan - totalLift)
-    ctx.fillStyle = '#0f172a';
-    if (direction !== 'up') {
-      let eyeOffsetX = 0;
-      if (direction === 'left') eyeOffsetX = -4;
-      if (direction === 'right') eyeOffsetX = 4;
-
+    if (isFemale) {
+      ctx.roundRect(x - 15, y - 30 - totalLift, 30, 11, [10, 10, 4, 4]);
+      ctx.fill();
+      ctx.fillStyle = colors.shirt || '#ec4899';
       ctx.beginPath();
-      ctx.arc(x - 5 + eyeOffsetX, y - 16 - totalLift, 2.2, 0, Math.PI * 2);
-      ctx.arc(x + 5 + eyeOffsetX, y - 16 - totalLift, 2.2, 0, Math.PI * 2);
+      ctx.arc(x + 11, y - 25 - totalLift, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.roundRect(x - 14, y - 29 - totalLift, 28, 9, [8, 8, 2, 2]);
       ctx.fill();
     }
 
-    // 8. Floating Emote (Ikut melayang saat loncat)
+    // 9. ANIMASI MATA SESUAI STATUS
+    ctx.fillStyle = '#0f172a';
+    let eyeOffsetX = 0;
+    if (direction === 'left') eyeOffsetX = -4;
+    if (direction === 'right') eyeOffsetX = 4;
+
+    if (isSleeping) {
+      // A. STATUS TIDUR: Mata Merem (Garis Tidur Horisontal)
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(x - 7 + eyeOffsetX, y - 16 - totalLift);
+      ctx.lineTo(x - 3 + eyeOffsetX, y - 16 - totalLift);
+      ctx.moveTo(x + 3 + eyeOffsetX, y - 16 - totalLift);
+      ctx.lineTo(x + 7 + eyeOffsetX, y - 16 - totalLift);
+      ctx.stroke();
+    } else {
+      // B. STATUS NORMAL / KERJA / AFK: Mata Terbuka
+      if (direction !== 'up') {
+        ctx.beginPath();
+        ctx.arc(x - 5 + eyeOffsetX, y - 16 - totalLift, 2.2, 0, Math.PI * 2);
+        ctx.arc(x + 5 + eyeOffsetX, y - 16 - totalLift, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (isFemale) {
+          ctx.fillRect(x + 6 + eyeOffsetX, y - 19 - totalLift, 2, 2);
+          ctx.fillRect(x - 8 + eyeOffsetX, y - 19 - totalLift, 2, 2);
+        }
+      }
+    }
+
+    // 10. EFEK TAMBAHAN SPESIFIK STATUS
+    // A. Efek Kerja: Laptop Mini di depan karakter
+    if (isWorking) {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x - 9, y + 2 - totalLift, 18, 10);
+      ctx.fillStyle = '#38bdf8'; // Layar bersinar
+      ctx.fillRect(x - 7, y + 3 - totalLift, 14, 7);
+    }
+
+    // B. Efek Tidur: Huruf "Z z z" mengambang perlahan
+    if (isSleeping) {
+      const floatZ = Math.sin(walkFrame * 1.5) * 4;
+      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#a855f7';
+      ctx.fillText('Z', x + 12, y - 36 - totalLift + floatZ);
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('z', x + 18, y - 44 - totalLift + floatZ * 0.8);
+    }
+
+    // C. Efek AFK: Ikon jam pasir mengambang
+    if (isAfk) {
+      ctx.font = '14px sans-serif';
+      ctx.fillText('⏳', x + 14, y - 38 - totalLift);
+    }
+
+    // 11. Floating Emote
     if (emote) {
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(emote, x, y - 48 - totalLift);
+      ctx.fillText(emote, x, y - 50 - totalLift);
     }
 
-    // 9. Name Tag Pill (Ikut melayang bersama kepala)
+    // 12. Name Tag Pill
     ctx.font = '600 11px Inter, sans-serif';
     const textWidth = ctx.measureText(name).width;
     const pillWidth = textWidth + 24;
@@ -929,7 +1051,13 @@ export default function VirtualRoom({
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = micOn ? '#22c55e' : '#ef4444';
+    // Titik warna indikator status di samping nama
+    let statusDotColor = '#22c55e'; // Default online hijau
+    if (isSleeping) statusDotColor = '#a855f7'; // Ungu
+    else if (isWorking) statusDotColor = '#6366f1'; // Biru indigo
+    else if (isAfk) statusDotColor = '#f59e0b'; // Oranye
+
+    ctx.fillStyle = statusDotColor;
     ctx.beginPath();
     ctx.arc(pillX + 9, pillY + 9, 3.5, 0, Math.PI * 2);
     ctx.fill();
@@ -940,6 +1068,8 @@ export default function VirtualRoom({
 
     ctx.restore();
   };
+
+  
 
   const handleCanvasClick = (e) => {
     const canvas = mapCanvasRef.current;
@@ -1412,18 +1542,61 @@ export default function VirtualRoom({
 
       {/* FOOTER BAR */}
       <footer className="h-16 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
-        <div className="hidden sm:flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shadow"
-            style={{ backgroundColor: selectedAvatar.body }}
-          >
-            {playerName.slice(0, 2).toUpperCase()}
+
+          <div className="hidden sm:flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shadow shrink-0"
+              style={{ backgroundColor: selectedAvatar.body }}
+            >
+              {playerName.slice(0, 2).toUpperCase()}
+            </div>
+
+            <div className="flex flex-col">
+              <p className="text-xs font-bold text-white">{playerName}</p>
+
+              {/* Dropdown Menu Berbasis Klik */}
+              <div className="relative mt-0.5" ref={statusMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsStatusMenuOpen((prev) => !prev)}
+                  className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-700/80 px-2 py-0.5 rounded-lg border border-slate-700 text-[10px] text-slate-200 transition"
+                >
+                  <span className="font-medium truncate max-w-[120px]">{playerStatus}</span>
+                  <span className="text-[9px] text-slate-400 ml-0.5">{isStatusMenuOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {/* Panel Dropdown (Hanya muncul jika isStatusMenuOpen === true) */}
+                {isStatusMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-900 border border-slate-800 rounded-2xl p-1.5 shadow-2xl z-50 animate-fadeIn">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 px-2 py-1">
+                      Pilih Status
+                    </div>
+                    {STATUS_PRESETS.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setPlayerStatus(s.val);
+                          setIsStatusMenuOpen(false); // Otomatis tutup setelah memilih
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-xl flex items-center justify-between transition ${
+                          playerStatus === s.val
+                            ? 'bg-indigo-600/20 text-indigo-300 font-semibold border border-indigo-500/30'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.badgeColor }} />
+                          <span>{s.label}</span>
+                        </div>
+                        <span>{s.icon}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold text-white">{playerName}</p>
-            <p className="text-[10px] text-slate-400">{playerStatus}</p>
-          </div>
-        </div>
 
         <div className="flex items-center gap-2 mx-auto sm:mx-0">
           <button
